@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { isToday, isYesterday, subMonths, subWeeks } from 'date-fns';
-import Link from 'next/link';
-import { useParams, usePathname, useRouter } from 'next/navigation';
-import type { User } from 'next-auth';
-import { memo, useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import useSWR from 'swr';
+import { isToday, isYesterday, subMonths, subWeeks } from "date-fns";
+import Link from "next/link";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import type { User } from "next-auth";
+import { memo, useEffect, useState } from "react";
+import { toast } from "sonner";
+import useSWR from "swr";
 
 import {
   CheckCircleFillIcon,
@@ -15,7 +15,7 @@ import {
   MoreHorizontalIcon,
   ShareIcon,
   TrashIcon,
-} from '@/components/icons';
+} from "@/components/icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +36,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -45,10 +45,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from '@/components/ui/sidebar';
-import type { Chat } from '@/lib/db/schema';
-import { fetcher } from '@/lib/utils';
-import { useChatVisibility } from '@/hooks/use-chat-visibility';
+} from "@/components/ui/sidebar";
+import { fetcher } from "@/lib/utils";
+import { useChatVisibility } from "@/hooks/use-chat-visibility";
+import { SessionData } from "@/lib/session";
+import { customFetch } from "@/lib/customFetch";
+import { useLocalStorage } from "usehooks-ts";
 
 type GroupedChats = {
   today: Chat[];
@@ -56,6 +58,22 @@ type GroupedChats = {
   lastWeek: Chat[];
   lastMonth: Chat[];
   older: Chat[];
+};
+
+type Chat = {
+  id: string;
+  bot_id: string;
+  title: string;
+  user_id: string;
+  created_at: string;
+};
+
+type ChatResponse = {
+  items: Chat[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
 };
 
 const PureChatItem = ({
@@ -69,15 +87,17 @@ const PureChatItem = ({
   onDelete: (chatId: string) => void;
   setOpenMobile: (open: boolean) => void;
 }) => {
-  const { visibilityType, setVisibilityType } = useChatVisibility({
-    chatId: chat.id,
-    initialVisibility: chat.visibility,
-  });
-
+  const [currentBotId, setCurrentBotId] = useLocalStorage("currentBotId", "");
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={isActive}>
-        <Link href={`/chat/${chat.id}`} onClick={() => setOpenMobile(false)}>
+        <Link
+          href={`/chat/${chat.id}`}
+          onClick={() => {
+            setOpenMobile(false);
+            setCurrentBotId("");
+          }}
+        >
           <span>{chat.title}</span>
         </Link>
       </SidebarMenuButton>
@@ -101,31 +121,17 @@ const PureChatItem = ({
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
-                <DropdownMenuItem
-                  className="cursor-pointer flex-row justify-between"
-                  onClick={() => {
-                    setVisibilityType('private');
-                  }}
-                >
+                <DropdownMenuItem className="cursor-pointer flex-row justify-between">
                   <div className="flex flex-row gap-2 items-center">
                     <LockIcon size={12} />
                     <span>Private</span>
                   </div>
-                  {visibilityType === 'private' ? (
-                    <CheckCircleFillIcon />
-                  ) : null}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer flex-row justify-between"
-                  onClick={() => {
-                    setVisibilityType('public');
-                  }}
-                >
+                <DropdownMenuItem className="cursor-pointer flex-row justify-between">
                   <div className="flex flex-row gap-2 items-center">
                     <GlobeIcon />
                     <span>Public</span>
                   </div>
-                  {visibilityType === 'public' ? <CheckCircleFillIcon /> : null}
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
@@ -149,7 +155,7 @@ export const ChatItem = memo(PureChatItem, (prevProps, nextProps) => {
   return true;
 });
 
-export function SidebarHistory({ user }: { user: User | undefined }) {
+export function SidebarHistory({ user }: { user: SessionData | null }) {
   const { setOpenMobile } = useSidebar();
   const { id } = useParams();
   const pathname = usePathname();
@@ -157,9 +163,13 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     data: history,
     isLoading,
     mutate,
-  } = useSWR<Array<Chat>>(user ? '/api/history' : null, fetcher, {
-    fallbackData: [],
-  });
+  } = useSWR<ChatResponse>(
+    user ? "http://127.0.0.1:8000/api/v1/chat/" : null,
+    fetcher,
+    {
+      fallbackData: { items: [], total: 0, page: 1, size: 0, pages: 0 },
+    }
+  );
 
   useEffect(() => {
     mutate();
@@ -169,41 +179,38 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const router = useRouter();
   const handleDelete = async () => {
-    const deletePromise = fetch(`/api/chat?id=${deleteId}`, {
-      method: 'DELETE',
-    });
+    // console.log(access_token);
+    // console.log(deleteId);
+    const deletePromise = customFetch(
+      `http://127.0.0.1:8000/api/v1/chat/${deleteId}`,
+      {
+        method: "DELETE",
+      }
+    );
 
     toast.promise(deletePromise, {
-      loading: 'Deleting chat...',
+      loading: "Deleting chat...",
       success: () => {
-        mutate((history) => {
-          if (history) {
-            return history.filter((h) => h.id !== id);
+        mutate((prevHistory) => {
+          if (prevHistory) {
+            return {
+              ...prevHistory,
+              items: prevHistory.items.filter((h) => h.id !== deleteId),
+            };
           }
+          return prevHistory;
         });
-        return 'Chat deleted successfully';
+        return "Chat deleted successfully";
       },
-      error: 'Failed to delete chat',
+      error: "Failed to delete chat",
     });
 
     setShowDeleteDialog(false);
 
     if (deleteId === id) {
-      router.push('/');
+      router.push("/");
     }
   };
-
-  if (!user) {
-    return (
-      <SidebarGroup>
-        <SidebarGroupContent>
-          <div className="px-2 text-zinc-500 w-full flex flex-row justify-center items-center text-sm gap-2">
-            Login to save and revisit previous chats!
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -222,7 +229,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
                   className="h-4 rounded-md flex-1 max-w-[--skeleton-width] bg-sidebar-accent-foreground/10"
                   style={
                     {
-                      '--skeleton-width': `${item}%`,
+                      "--skeleton-width": `${item}%`,
                     } as React.CSSProperties
                   }
                 />
@@ -234,7 +241,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     );
   }
 
-  if (history?.length === 0) {
+  if (history?.items.length === 0) {
     return (
       <SidebarGroup>
         <SidebarGroupContent>
@@ -253,7 +260,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
 
     return chats.reduce(
       (groups, chat) => {
-        const chatDate = new Date(chat.createdAt);
+        const chatDate = new Date(chat.created_at);
 
         if (isToday(chatDate)) {
           groups.today.push(chat);
@@ -275,7 +282,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
         lastWeek: [],
         lastMonth: [],
         older: [],
-      } as GroupedChats,
+      } as GroupedChats
     );
   };
 
@@ -286,7 +293,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
           <SidebarMenu>
             {history &&
               (() => {
-                const groupedChats = groupChatsByDate(history);
+                const groupedChats = groupChatsByDate(history.items);
 
                 return (
                   <>
@@ -295,7 +302,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
                         <div className="px-2 py-1 text-xs text-sidebar-foreground/50">
                           Today
                         </div>
-                        {groupedChats.today.map((chat) => (
+                        {groupedChats.today.reverse().map((chat) => (
                           <ChatItem
                             key={chat.id}
                             chat={chat}
@@ -315,7 +322,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
                         <div className="px-2 py-1 text-xs text-sidebar-foreground/50 mt-6">
                           Yesterday
                         </div>
-                        {groupedChats.yesterday.map((chat) => (
+                        {groupedChats.yesterday.reverse().map((chat) => (
                           <ChatItem
                             key={chat.id}
                             chat={chat}
