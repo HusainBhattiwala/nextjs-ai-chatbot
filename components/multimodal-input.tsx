@@ -106,19 +106,6 @@ function PureMultimodalInput({
     setLocalStorageInput(input);
   }, []);
 
-  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = event.target.value;
-
-    // Clear command if input no longer matches
-    if (activeCommand && !newValue.startsWith(`/${activeCommand.name}`)) {
-      setActiveCommand(null);
-      onBotSelect("");
-    }
-
-    setInput(newValue);
-    adjustHeight();
-  };
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
@@ -139,6 +126,25 @@ function PureMultimodalInput({
       setCurrentBotId(botId);
     },
   });
+
+  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = event.target.value;
+
+    // clear command if input no longer matches
+    if (
+      activeCommand &&
+      !(
+        newValue.startsWith(`/${activeCommand.name.toLowerCase()}`) ||
+        newValue.startsWith(`/${activeCommand.name}`)
+      )
+    ) {
+      setActiveCommand(null);
+      onBotSelect("");
+    }
+
+    setInput(newValue);
+    adjustHeight();
+  };
 
   const handleSubmit = useCallback(
     async (event?: { preventDefault?: () => void }) => {
@@ -267,60 +273,8 @@ function PureMultimodalInput({
     ]
   );
 
-  // const uploadFile = async (file: File) => {
-  //   const formData = new FormData();
-  //   formData.append("file", file);
-
-  //   try {
-  //     const response = await fetch("/api/files/upload", {
-  //       method: "POST",
-  //       body: formData,
-  //     });
-
-  //     if (response.ok) {
-  //       const data = await response.json();
-  //       return {
-  //         url: data.url,
-  //         name: data.pathname,
-  //         contentType: data.contentType,
-  //       };
-  //     }
-  //     const { error } = await response.json();
-  //     toast.error(error);
-  //   } catch (error) {
-  //     toast.error("Failed to upload file, please try again!");
-  //   }
-  // };
-
-  // const handleFileChange = useCallback(
-  //   async (event: ChangeEvent<HTMLInputElement>) => {
-  //     const files = Array.from(event.target.files || []);
-  //     setUploadQueue(files.map((file) => file.name));
-
-  //     try {
-  //       const uploadPromises = files.map((file) => uploadFile(file));
-  //       const uploadedAttachments = await Promise.all(uploadPromises);
-  //       const successfullyUploadedAttachments = uploadedAttachments.filter(
-  //         (attachment): attachment is NonNullable<typeof attachment> =>
-  //           attachment !== undefined
-  //       );
-
-  //       setAttachments((currentAttachments) => [
-  //         ...currentAttachments,
-  //         ...successfullyUploadedAttachments,
-  //       ]);
-  //     } catch (error) {
-  //       console.error("Error uploading files!", error);
-  //     } finally {
-  //       setUploadQueue([]);
-  //     }
-  //   },
-  //   [setAttachments]
-  // );
-
   const getOrCreatePersonalCollection = async (): Promise<string> => {
     try {
-      // First try to get existing personal collection
       const getCollectionResponse = await customFetch(
         "http://localhost:8000/api/v1/collection/documents?name=personal_docs",
         {
@@ -335,7 +289,6 @@ function PureMultimodalInput({
         Array.isArray(getCollectionResponse.data) &&
         getCollectionResponse.data.length > 0
       ) {
-        // Get the first key from the first object in the array
         const firstItem = getCollectionResponse.data[0];
         const collectionId = Object.keys(firstItem)[0];
 
@@ -349,7 +302,6 @@ function PureMultimodalInput({
 
       console.log("No existing collection found, creating new one");
 
-      // If no collection exists, create one
       const createCollectionResponse = await customFetch(
         "http://localhost:8000/api/v1/collection",
         {
@@ -394,22 +346,15 @@ function PureMultimodalInput({
 
       console.log("Using collection ID:", collectionId);
 
-      // Create the metadata
       const jsonBody = {
         source: file.name,
         content_type: file.type,
         filename: file.name,
       };
 
-      // Create FormData
       const formData = new FormData();
-      // Add json_body as a string
       formData.append("json_body", JSON.stringify(jsonBody));
-      // Add the file
       formData.append("file", file);
-
-      // Log what we're sending
-      console.log("Sending JSON body:", jsonBody);
 
       const response = await customFetch(
         `http://localhost:8000/api/v1/collection/${collectionId}/index`,
@@ -561,7 +506,6 @@ function PureMultimodalInput({
               }
             }}
             onScroll={(e) => {
-              // Sync scroll with preview
               const target = e.currentTarget;
               const preview = target.previousElementSibling as HTMLDivElement;
               if (preview) {

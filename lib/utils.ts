@@ -21,30 +21,6 @@ interface ApplicationError extends Error {
   status: number;
 }
 
-// export const fetcher = async (url: string) => {
-//   const access_token = localStorage.getItem("access_token");
-//   const res = await customFetch(url, {
-//     headers: {
-//       token: `${access_token}`,
-//       entity: "User",
-//       "Content-Type": "application/json",
-//     },
-//   });
-
-//   if (!res.ok) {
-//     const error = new Error(
-//       "An error occurred while fetching the data."
-//     ) as ApplicationError;
-
-//     error.info = await res.json();
-//     error.status = res.status;
-
-//     throw error;
-//   }
-
-//   return res.json();
-// };
-
 export const fetcher = async (url: string) => {
   const response = await customFetch(url);
 
@@ -110,71 +86,27 @@ function addToolMessageToChat({
   });
 }
 
-// export function convertToUIMessages(
-//   messages: Array<DBMessage>
-// ): Array<Message> {
-//   return messages.reduce((chatMessages: Array<Message>, message) => {
-//     if (message.role === "tool") {
-//       return addToolMessageToChat({
-//         toolMessage: message as CoreToolMessage,
-//         messages: chatMessages,
-//       });
-//     }
-
-//     let textContent = "";
-//     const toolInvocations: Array<ToolInvocation> = [];
-
-//     if (typeof message.content === "string") {
-//       textContent = message.content;
-//     } else if (Array.isArray(message.content)) {
-//       for (const content of message.content) {
-//         if (content.type === "text") {
-//           textContent += content.text;
-//         } else if (content.type === "tool-call") {
-//           toolInvocations.push({
-//             state: "call",
-//             toolCallId: content.toolCallId,
-//             toolName: content.toolName,
-//             args: content.args,
-//           });
-//         }
-//       }
-//     }
-
-//     chatMessages.push({
-//       id: message.id,
-//       role: message.role as Message["role"],
-//       content: textContent,
-//       toolInvocations,
-//     });
-
-//     return chatMessages;
-//   }, []);
-// }
-
-// Ensure ApiMessage is correctly imported
-
 export function convertToUIMessages(
   apiMessages: Array<ApiMessage>
 ): Array<Message> {
   return apiMessages?.reduce((chatMessages: Array<Message>, apiMessage) => {
     if (apiMessage.human_query) {
-      // Convert human queries to user messages
+      // convert human queries to user messages
       chatMessages.push({
-        id: apiMessage.id, // Use the ID from ApiMessage
-        role: "user", // Define this as a user message
+        id: apiMessage.id,
+        role: "user",
         content: apiMessage.human_query,
-        toolInvocations: [], // No tool invocation handling
+        toolInvocations: [],
       });
     }
 
     if (apiMessage.ai_reply) {
-      // Convert AI replies to assistant messages
+      // convert AI replies to assistant messages
       chatMessages.push({
-        id: generateUUID(), // Optionally generate a new ID or use apiMessage.id
-        role: "assistant", // Define this as an assistant message
+        id: generateUUID(),
+        role: "assistant",
         content: apiMessage.ai_reply,
-        toolInvocations: [], // No tool invocation handling
+        toolInvocations: [],
       });
     }
 

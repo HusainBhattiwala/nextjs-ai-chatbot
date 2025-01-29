@@ -2,8 +2,6 @@
 
 import { customFetch } from "@/lib/customFetch";
 import { Bot } from "@/lib/types";
-import { set } from "date-fns";
-import { on } from "events";
 import { useCallback, useEffect, useState } from "react";
 
 interface UseCommandInputProps {
@@ -39,7 +37,6 @@ export const useCommandInput = ({
       setIsCommandMode(false);
       if (activeCommand) {
         setActiveCommand(null);
-        // onBotSelect("");
       }
       return;
     }
@@ -47,7 +44,7 @@ export const useCommandInput = ({
     const [command, ...rest] = input.split(" ");
     const cleanCommand = command.slice(1);
 
-    // Show suggestions when typing command
+    // show suggestions when typing command
     if (!activeCommand || rest.length === 0) {
       setIsCommandMode(true);
     }
@@ -62,7 +59,7 @@ export const useCommandInput = ({
         onBotSelect(matchedBot.id);
         setIsCommandMode(false);
       }
-      // Keep command active if it's already set
+      // keep command active if it's already set
       else if (activeCommand?.id === matchedBot.id) {
         setIsCommandMode(false);
       }
@@ -107,6 +104,7 @@ export const useCommandInput = ({
             (prev) => (prev + 1) % (filteredBots?.length || 1)
           );
           break;
+
         case "ArrowUp":
           e.preventDefault();
           setHighlightedIndex(
@@ -115,27 +113,41 @@ export const useCommandInput = ({
               (filteredBots?.length || 1)
           );
           break;
+
         case "Escape":
           setIsCommandMode(false);
           break;
+
         case "Backspace":
           if (activeCommand) {
-            // Check if we're deleting the command prefix
             const commandPrefix = `/${activeCommand.name}`;
-            if (input.startsWith(commandPrefix)) {
-              const remaining = input.slice(commandPrefix.length);
-              // If only command remains (with or without space)
-              if (input === commandPrefix || input === `${commandPrefix} `) {
-                setActiveCommand(null);
-                onBotSelect("");
-                setInput(remaining.trimStart());
-                e.preventDefault();
-              }
-              // If partial deletion within command
-              else if (input.length <= commandPrefix.length) {
-                setActiveCommand(null);
-                onBotSelect("");
-              }
+
+            // check if input exactly matches command (with or without space)
+            if (input === commandPrefix || input === `${commandPrefix} `) {
+              setActiveCommand(null);
+              onBotSelect("");
+              setInput("");
+              e.preventDefault();
+              break;
+            }
+
+            // check if cursor is at the end of the command
+            const selectionEnd = (e.target as HTMLTextAreaElement).selectionEnd;
+            if (selectionEnd === commandPrefix.length) {
+              setActiveCommand(null);
+              onBotSelect("");
+              setInput("");
+              e.preventDefault();
+              break;
+            }
+            if (
+              input.startsWith(commandPrefix) &&
+              input.length <= commandPrefix.length
+            ) {
+              setActiveCommand(null);
+              onBotSelect("");
+              setInput("");
+              e.preventDefault();
             }
           }
           break;
@@ -151,11 +163,6 @@ export const useCommandInput = ({
       onBotSelect,
     ]
   );
-
-  const clearCommand = useCallback(() => {
-    setActiveCommand(null);
-    onBotSelect("");
-  }, [onBotSelect]);
 
   const getProcessedInput = useCallback(() => {
     if (!input.startsWith("/") || !activeCommand) return input;

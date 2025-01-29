@@ -85,7 +85,7 @@ export function Chat({
               chatId={id}
               input={input}
               setInput={setInput}
-              handleSubmit={handleSubmit}
+              // handleSubmit={handleSubmit}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
               stop={stop}

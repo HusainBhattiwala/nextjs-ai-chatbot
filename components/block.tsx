@@ -338,7 +338,7 @@ function PureBlock({
                     chatId={chatId}
                     input={input}
                     setInput={setInput}
-                    handleSubmit={handleSubmit}
+                    // handleSubmit={handleSubmit}
                     isLoading={isLoading}
                     stop={stop}
                     setIsLoading={setIsLoading}
